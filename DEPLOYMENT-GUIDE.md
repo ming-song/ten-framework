@@ -23,14 +23,14 @@
 - **网络**: 能够访问外网下载模型文件
 
 ### 推荐配置（适用于V100服务器）
-- **操作系统**: Ubuntu 20.04+ 
+- **操作系统**: Ubuntu 20.04+
 - **内存**: 16GB+ RAM
 - **存储**: 10GB+ 可用空间
 - **GPU**: NVIDIA V100 (可选，用于模型加速)
 
 ### 必需软件
 - Docker 20.10+
-- Docker Compose 1.29+
+- Docker Compose 2.0+ (集成在Docker中) 或 docker-compose 1.29+
 - Git 2.0+
 - wget
 - unzip
@@ -119,7 +119,7 @@ chmod +x deploy-local-asr.sh
    ```bash
    # 将测试页面复制到客户端
    scp test-websocket-asr-simple.html user@client-machine:~/
-   
+
    # 在客户端浏览器中打开该文件
    # 设置服务器地址为: ws://YOUR_SERVER_IP:8765
    ```
@@ -157,35 +157,41 @@ python test_websocket.py
 
 ### 查看服务状态
 ```bash
+# 优先使用新版docker compose
+docker compose -f docker-compose.websocket-asr-local.yml ps
+
+# 或者使用legacy版本
 docker-compose -f docker-compose.websocket-asr-local.yml ps
 ```
 
 ### 查看服务日志
 ```bash
 # 查看最新日志
-docker-compose -f docker-compose.websocket-asr-local.yml logs
+docker compose -f docker-compose.websocket-asr-local.yml logs
 
 # 实时跟踪日志
-docker-compose -f docker-compose.websocket-asr-local.yml logs -f
+docker compose -f docker-compose.websocket-asr-local.yml logs -f
 
 # 查看最近20行日志
-docker-compose -f docker-compose.websocket-asr-local.yml logs --tail=20
+docker compose -f docker-compose.websocket-asr-local.yml logs --tail=20
+
+# 如果使用legacy版本，将docker compose替换为docker-compose
 ```
 
 ### 重启服务
 ```bash
-docker-compose -f docker-compose.websocket-asr-local.yml restart
+docker compose -f docker-compose.websocket-asr-local.yml restart
 ```
 
 ### 停止服务
 ```bash
-docker-compose -f docker-compose.websocket-asr-local.yml down
+docker compose -f docker-compose.websocket-asr-local.yml down
 ```
 
 ### 完全清理
 ```bash
 # 停止并删除容器
-docker-compose -f docker-compose.websocket-asr-local.yml down
+docker compose -f docker-compose.websocket-asr-local.yml down
 
 # 删除镜像
 docker rmi ten-framework/websocket-asr-local
@@ -335,7 +341,7 @@ ws://YOUR_SERVER_IP:8765
 ```json
 {
   "is_final": true,
-  "mode": "vosk-model-small-cn-0.22", 
+  "mode": "vosk-model-small-cn-0.22",
   "text": "你好世界，这是最终结果",
   "wav_name": "h5",
   "language": "cn",
@@ -365,6 +371,6 @@ ws://YOUR_SERVER_IP:8765
 
 ---
 
-**作者**: Songm  
-**更新时间**: 2024-01-15  
+**作者**: Songm
+**更新时间**: 2024-01-15
 **许可证**: 请参考项目根目录的LICENSE文件

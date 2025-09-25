@@ -89,14 +89,14 @@ echo "-------------------"
 if command -v docker &> /dev/null; then
     DOCKER_VERSION=$(docker --version | cut -d' ' -f3 | cut -d',' -f1)
     check_pass "Docker: v${DOCKER_VERSION}"
-    
+
     # Docker服务状态
     if systemctl is-active --quiet docker 2>/dev/null; then
         check_pass "Docker服务: 运行中"
     else
         check_fail "Docker服务: 未运行"
     fi
-    
+
     # Docker权限检查
     if docker ps &> /dev/null; then
         check_pass "Docker权限: 正常"
@@ -108,9 +108,12 @@ else
 fi
 
 # Docker Compose检查
-if command -v docker-compose &> /dev/null; then
-    COMPOSE_VERSION=$(docker-compose --version | cut -d' ' -f3 | cut -d',' -f1)
+if docker compose version &> /dev/null; then
+    COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || docker compose version | grep -oP 'v\K[^\s]+' | head -1)
     check_pass "Docker Compose: v${COMPOSE_VERSION}"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_VERSION=$(docker-compose --version | cut -d' ' -f3 | cut -d',' -f1)
+    check_warn "Docker Compose (legacy): v${COMPOSE_VERSION} - 建议升级到docker compose"
 else
     check_fail "Docker Compose: 未安装"
 fi
@@ -193,7 +196,7 @@ echo "-------------------"
 if command -v nvidia-smi &> /dev/null; then
     GPU_INFO=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits | head -1)
     check_pass "NVIDIA GPU: $GPU_INFO"
-    
+
     # CUDA检查
     if command -v nvcc &> /dev/null; then
         CUDA_VERSION=$(nvcc --version | grep "release" | cut -d' ' -f5 | cut -d',' -f1)
@@ -228,7 +231,8 @@ fi
 echo
 echo "🔧 常见问题解决方案："
 echo "• Docker安装: curl -fsSL https://get.docker.com | sh"
-echo "• Docker Compose安装: pip install docker-compose"
+echo "• Docker Compose(新版): Docker 20.10+ 已集成 docker compose 命令"
+echo "• Docker Compose(legacy): pip install docker-compose"
 echo "• 用户权限: sudo usermod -aG docker \$USER"
 echo "• 启动Docker: sudo systemctl start docker"
 echo

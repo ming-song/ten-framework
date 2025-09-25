@@ -50,7 +50,11 @@ check_command() {
 check_dependencies() {
     log_info "检查系统依赖..."
     check_command docker
-    check_command docker-compose
+    # 检查Docker Compose（新版本或legacy版本）
+    if ! docker compose version &> /dev/null && ! command -v docker-compose &> /dev/null; then
+        log_error "Docker Compose未安装，请安装Docker Compose"
+        exit 1
+    fi
     check_command git
     log_success "系统依赖检查完成"
 }
@@ -92,30 +96,30 @@ check_port() {
 # 清理旧容器和镜像
 cleanup_old_deployment() {
     log_info "清理旧的部署..."
-    
+
     # 停止并删除旧容器
     if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
         log_info "停止并删除旧容器: $CONTAINER_NAME"
         docker stop $CONTAINER_NAME 2>/dev/null || true
         docker rm $CONTAINER_NAME 2>/dev/null || true
     fi
-    
+
     # 清理dangling镜像
     if docker images -f "dangling=true" -q | wc -l | grep -v "^0$"; then
         log_info "清理无用的Docker镜像..."
         docker image prune -f
     fi
-    
+
     log_success "清理完成"
 }
 
 # 下载Vosk语音模型
 download_vosk_models() {
     log_info "检查Vosk语音模型..."
-    
+
     # 创建models目录
     mkdir -p ./models
-    
+
     # 中文模型
     if [ ! -d "./models/vosk-model-small-cn-0.22" ]; then
         log_info "下载中文语音模型 (约170MB)..."
@@ -128,7 +132,7 @@ download_vosk_models() {
     else
         log_success "中文模型已存在"
     fi
-    
+
     # 英文模型
     if [ ! -d "./models/vosk-model-small-en-us-0.15" ]; then
         log_info "下载英文语音模型 (约40MB)..."
@@ -146,13 +150,13 @@ download_vosk_models() {
 # 构建Docker镜像
 build_docker_image() {
     log_info "构建Docker镜像..."
-    
+
     # 检查Dockerfile是否存在
     if [ ! -f "Dockerfile.websocket-asr-local" ]; then
         log_error "Dockerfile.websocket-asr-local 文件不存在"
         exit 1
     fi
-    
+
     # 构建镜像
     docker build -f Dockerfile.websocket-asr-local -t $IMAGE_NAME . --no-cache
     log_success "Docker镜像构建完成"
@@ -161,26 +165,34 @@ build_docker_image() {
 # 启动服务
 start_service() {
     log_info "启动WebSocket ASR服务..."
-    
+
     # 检查docker-compose文件
     if [ ! -f "docker-compose.websocket-asr-local.yml" ]; then
         log_error "docker-compose.websocket-asr-local.yml 文件不存在"
         exit 1
     fi
-    
+
     # 启动服务
-    docker-compose -f docker-compose.websocket-asr-local.yml up -d
-    
+    if docker compose version &> /dev/null; then
+        docker compose -f docker-compose.websocket-asr-local.yml up -d
+    else
+        docker-compose -f docker-compose.websocket-asr-local.yml up -d
+    fi
+
     # 等待服务启动
     log_info "等待服务启动..."
     sleep 5
-    
+
     # 检查服务状态
     if docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q "websocket-asr-local.*Up"; then
         log_success "WebSocket ASR服务启动成功!"
     else
         log_error "服务启动失败，请检查日志"
-        docker-compose -f docker-compose.websocket-asr-local.yml logs
+        if docker compose version &> /dev/null; then
+            docker compose -f docker-compose.websocket-asr-local.yml logs
+        else
+            docker-compose -f docker-compose.websocket-asr-local.yml logs
+        fi
         exit 1
     fi
 }
@@ -188,14 +200,14 @@ start_service() {
 # 检查服务健康状态
 check_service_health() {
     log_info "检查服务健康状态..."
-    
+
     # 等待服务完全启动
     sleep 3
-    
+
     # 检查WebSocket端口
     local max_attempts=10
     local attempt=1
-    
+
     while [ $attempt -le $max_attempts ]; do
         if netstat -tuln | grep -q ":$WEBSOCKET_PORT "; then
             log_success "WebSocket服务 (端口 $WEBSOCKET_PORT) 运行正常"
@@ -206,7 +218,7 @@ check_service_health() {
             ((attempt++))
         fi
     done
-    
+
     if [ $attempt -gt $max_attempts ]; then
         log_error "服务健康检查失败"
         show_service_logs
@@ -217,13 +229,17 @@ check_service_health() {
 # 显示服务日志
 show_service_logs() {
     log_info "显示服务日志..."
-    docker-compose -f docker-compose.websocket-asr-local.yml logs --tail=20
+    if docker compose version &> /dev/null; then
+        docker compose -f docker-compose.websocket-asr-local.yml logs --tail=20
+    else
+        docker-compose -f docker-compose.websocket-asr-local.yml logs --tail=20
+    fi
 }
 
 # 显示部署信息
 show_deployment_info() {
     local server_ip=$(hostname -I | awk '{print $1}')
-    
+
     echo
     echo "==============================================="
     log_success "WebSocket ASR服务部署完成!"
@@ -236,10 +252,17 @@ show_deployment_info() {
     echo "  • 识别模式: 手动切换"
     echo
     echo "🔧 管理命令:"
-    echo "  • 查看日志: docker-compose -f docker-compose.websocket-asr-local.yml logs -f"
-    echo "  • 停止服务: docker-compose -f docker-compose.websocket-asr-local.yml down"
-    echo "  • 重启服务: docker-compose -f docker-compose.websocket-asr-local.yml restart"
-    echo "  • 查看状态: docker-compose -f docker-compose.websocket-asr-local.yml ps"
+    if docker compose version &> /dev/null; then
+        echo "  • 查看日志: docker compose -f docker-compose.websocket-asr-local.yml logs -f"
+        echo "  • 停止服务: docker compose -f docker-compose.websocket-asr-local.yml down"
+        echo "  • 重启服务: docker compose -f docker-compose.websocket-asr-local.yml restart"
+        echo "  • 查看状态: docker compose -f docker-compose.websocket-asr-local.yml ps"
+    else
+        echo "  • 查看日志: docker-compose -f docker-compose.websocket-asr-local.yml logs -f"
+        echo "  • 停止服务: docker-compose -f docker-compose.websocket-asr-local.yml down"
+        echo "  • 重启服务: docker-compose -f docker-compose.websocket-asr-local.yml restart"
+        echo "  • 查看状态: docker-compose -f docker-compose.websocket-asr-local.yml ps"
+    fi
     echo
     echo "🌐 测试页面:"
     echo "  • 本地测试: file://$(pwd)/test-websocket-asr-simple.html"
@@ -259,19 +282,19 @@ main() {
     echo "🎤 本地WebSocket ASR服务一键部署脚本"
     echo "==============================================="
     echo
-    
+
     # 预检查
     check_dependencies
     check_docker_service
     check_port
-    
+
     # 部署流程
     cleanup_old_deployment
     download_vosk_models
     build_docker_image
     start_service
     check_service_health
-    
+
     # 显示结果
     show_deployment_info
 }

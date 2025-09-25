@@ -186,7 +186,7 @@ ENV SAMPLE_RATE=8000  # 改为8000Hz
    ```bash
    # 检查Docker是否运行
    docker info
-   
+
    # 查看详细错误信息
    docker logs websocket-asr-local
    ```
@@ -195,7 +195,7 @@ ENV SAMPLE_RATE=8000  # 改为8000Hz
    ```bash
    # 检查端口是否被占用
    netstat -tlnp | grep 8765
-   
+
    # 检查防火墙设置
    sudo ufw status
    ```
