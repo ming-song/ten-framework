@@ -12,5 +12,9 @@ group("example_apps") {
     if (ten_enable_go_binding) {
       deps += [ "pprof_app_go" ]
     }
+
+    if (ten_enable_python_binding) {
+      deps += [ "websocket_asr_local_app" ]
+    }
   }
 }

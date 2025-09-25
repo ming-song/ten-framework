@@ -141,3 +141,38 @@ ai_agents/xdump_config
 ai_agents/.idea
 ai_agents/*.log
 ai_agents/*.pcm
+
+# ===============================
+# WebSocket ASR Local Development
+
+# Python virtual environment
+test_env/
+
+# Vosk models (large files, should be downloaded separately)
+vosk-model-*/
+models/
+*.tar.gz
+*.zip
+
+# Temporary ASR files
+standalone_websocket_asr_fixed.py
+test_websocket_connectivity.py
+start_websocket_asr.sh
+
+# Audio files
+*.wav
+*.pcm
+*.mp3
+*.flac
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# IDE and editor files
+.vscode/settings.json
+.vscode/launch.json
+*.swp
+*.swo
+*~

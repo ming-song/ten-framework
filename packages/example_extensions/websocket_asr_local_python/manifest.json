@@ -1,0 +1,63 @@
+{
+    "type": "extension",
+    "name": "websocket_asr_local_python",
+    "version": "0.11.15",
+    "display_name": {
+        "locales": {
+            "en-US": {
+                "content": "Local WebSocket ASR Python Extension"
+            },
+            "zh-CN": {
+                "content": "本地 WebSocket ASR Python 扩展"
+            }
+        }
+    },
+    "description": {
+        "locales": {
+            "en-US": {
+                "content": "Local WebSocket ASR server extension using Vosk offline speech recognition"
+            },
+            "zh-CN": {
+                "content": "使用 Vosk 离线语音识别的本地 WebSocket ASR 服务器扩展"
+            }
+        }
+    },
+    "tags": [
+        "python",
+        "websocket",
+        "asr",
+        "local",
+        "offline"
+    ],
+    "dependencies": [
+        {
+            "type": "system",
+            "name": "ten_runtime_python",
+            "version": "0.11.15"
+        }
+    ],
+    "api": {
+        "cmd_in": [],
+        "cmd_out": [],
+        "data_in": [],
+        "data_out": [
+            {
+                "name": "asr_result",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string"
+                        },
+                        "is_final": {
+                            "type": "boolean"
+                        },
+                        "confidence": {
+                            "type": "number"
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,17 @@
+#
+# This file is part of TEN Framework, an open source project.
+# Licensed under the Apache License, Version 2.0.
+# See the LICENSE file for more information.
+#
+import("//build/ten_runtime/options.gni")
+
+ten_app_group("websocket_asr_local_app") {
+  app_name = "websocket_asr_local_app"
+  app_version = "0.11.15"
+
+  if (ten_enable_python_binding) {
+    deps = [
+      "//packages/example_extensions/websocket_asr_local_python:websocket_asr_local_python_extension",
+    ]
+  }
+}

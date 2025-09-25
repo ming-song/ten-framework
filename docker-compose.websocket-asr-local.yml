@@ -1,0 +1,9 @@
+services:
+  websocket-asr-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.websocket-asr-local
+    container_name: websocket-asr-local
+    ports:
+      - "8765:8765"
+    restart: unless-stopped

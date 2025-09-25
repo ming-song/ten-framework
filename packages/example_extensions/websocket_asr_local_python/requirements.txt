@@ -1,0 +1,5 @@
+websockets>=11.0.0
+vosk>=0.3.45
+numpy>=1.21.0
+wave
+asyncio

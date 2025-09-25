@@ -91,7 +91,7 @@
     "./tests/ten_runtime/integration",
     "./core/ten_gn/.gnfiles"
   ],
-  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.typeCheckingMode": "off",
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.linkedProjects": [
     "${workspaceFolder}/core/src/ten_manager/Cargo.toml",

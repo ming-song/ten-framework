@@ -1,0 +1,17 @@
+{
+    "graph": {
+        "nodes": [
+            {
+                "type": "extension",
+                "name": "websocket_asr_local_python",
+                "addon": "websocket_asr_local_python",
+                "property": {
+                    "server_port": 8765,
+                    "model_path": "models/vosk-model-small-en-us-0.15",
+                    "sample_rate": 16000
+                }
+            }
+        ],
+        "connections": []
+    }
+}
