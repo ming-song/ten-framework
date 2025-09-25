@@ -104,10 +104,27 @@ cleanup_old_deployment() {
         docker rm $CONTAINER_NAME 2>/dev/null || true
     fi
 
+    # 清理旧的项目镜像
+    if docker images --format "table {{.Repository}}\t{{.Tag}}" | grep -q "^${IMAGE_NAME}\s"; then
+        log_info "删除旧的项目镜像: $IMAGE_NAME"
+        docker rmi $IMAGE_NAME 2>/dev/null || true
+    fi
+
     # 清理dangling镜像
-    if docker images -f "dangling=true" -q | wc -l | grep -v "^0$"; then
-        log_info "清理无用的Docker镜像..."
+    local dangling_count=$(docker images -f "dangling=true" -q | wc -l)
+    if [ "$dangling_count" -gt 0 ]; then
+        log_info "清理 $dangling_count 个无用的Docker镜像..."
         docker image prune -f
+    fi
+
+    # 可选：清理未使用的镜像（节省更多空间）
+    # 询问用户是否要进行深度清理
+    read -p "是否要清理所有未使用的镜像以节省空间? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_info "执行深度清理：删除所有未使用的镜像..."
+        docker system prune -a -f
+        log_success "深度清理完成，已释放更多磁盘空间"
     fi
 
     log_success "清理完成"

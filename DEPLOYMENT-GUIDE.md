@@ -189,8 +189,23 @@ docker compose -f docker-compose.websocket-asr-local.yml restart
 docker compose -f docker-compose.websocket-asr-local.yml down
 ```
 
+### 清理旧部署
+```bash
+# 使用清理工具（推荐）
+./cleanup-asr.sh
+
+# 或手动清理
+docker stop websocket-asr-local
+docker rm websocket-asr-local
+docker rmi ten-framework/websocket-asr-local
+```
+
 ### 完全清理
 ```bash
+# 使用交互式清理工具
+./cleanup-asr.sh
+
+# 或手动彻底清理
 # 停止并删除容器
 docker compose -f docker-compose.websocket-asr-local.yml down
 

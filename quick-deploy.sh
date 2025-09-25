@@ -17,9 +17,13 @@ if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev
     exit 1
 fi
 
-# 停止旧容器
+# 停止旧容器和清理镜像
+echo "🧹 清理旧的部署..."
 docker stop $CONTAINER_NAME 2>/dev/null || true
 docker rm $CONTAINER_NAME 2>/dev/null || true
+
+# 清理旧镜像
+docker rmi ten-framework/websocket-asr-local 2>/dev/null || true
 
 # 下载模型（如果不存在）
 mkdir -p models
