@@ -11,33 +11,52 @@ class SimpleASRService:
         self.models = {}
         self.recognizers = {}
 
-        # 模型名称映射
-        self.model_names = {
-            'en': 'vosk-model-small-en-us-0.15',
-            'cn': 'vosk-model-small-cn-0.22'
+        # 模型名称映射和配置
+        self.model_configs = {
+            'vosk-model-small-en-us-0.15': {
+                'path': 'models/vosk-model-small-en-us-0.15',
+                'language': 'en',
+                'display_name': 'English (US) - Small'
+            },
+            'vosk-model-small-cn-0.22': {
+                'path': 'models/vosk-model-small-cn-0.22',
+                'language': 'cn',
+                'display_name': '中文 - Small (0.22)'
+            },
+            'vosk-model-cn-0.22': {
+                'path': 'models/vosk-model-cn-0.22',
+                'language': 'cn',
+                'display_name': '中文 - Standard (0.22)'
+            }
         }
-
-        # 英文模型
-        try:
-            self.models['en'] = vosk.Model("models/vosk-model-small-en-us-0.15")
-            print("✓ 英文模型加载成功")
-        except Exception as e:
-            print(f"❌ 英文模型加载失败: {e}")
-
-        # 中文模型
-        try:
-            self.models['cn'] = vosk.Model("models/vosk-model-small-cn-0.22")
-            print("✓ 中文模型加载成功")
-        except Exception as e:
-            print(f"❌ 中文模型加载失败: {e}")
+        
+        # 加载所有可用模型
+        for model_name, config in self.model_configs.items():
+            try:
+                self.models[model_name] = vosk.Model(config['path'])
+                print(f"✓ {config['display_name']} 模型加载成功")
+            except Exception as e:
+                print(f"❌ {config['display_name']} 模型加载失败: {e}")
+                
+        # 默认模型 - V100服务器推荐使用标准版获得最佳精度
+        self.default_model = 'vosk-model-cn-0.22'
 
         self.client_sessions = {}  # 存储每个客户端的会话信息
 
-    def create_recognizer(self, language='cn'):
-        """为指定语言创建识别器"""
-        if language in self.models:
-            return vosk.KaldiRecognizer(self.models[language], 16000)
+    def create_recognizer(self, model_name=None):
+        """为指定模型创建识别器"""
+        if model_name is None:
+            model_name = self.default_model
+            
+        if model_name in self.models:
+            return vosk.KaldiRecognizer(self.models[model_name], 16000)
         return None
+        
+    def get_model_language(self, model_name):
+        """获取模型对应的语言"""
+        if model_name in self.model_configs:
+            return self.model_configs[model_name]['language']
+        return 'cn'  # 默认中文
 
     async def handle_websocket_connection(self, websocket):
         client_id = id(websocket)
@@ -45,17 +64,17 @@ class SimpleASRService:
 
         # 初始化客户端会话
         self.client_sessions[client_id] = {
-            'current_language': 'cn',  # 默认中文
-            'recognizer': self.create_recognizer('cn')
+            'current_model': self.default_model,
+            'recognizer': self.create_recognizer(self.default_model)
         }
 
         try:
             await websocket.send(json.dumps({
                 'type': 'connection_established',
                 'message': '简单ASR服务已连接',
-                'supported_languages': list(self.models.keys()),
-                'current_language': 'cn',
-                'mode': 'manual_switch'
+                'available_models': [{k: v['display_name']} for k, v in self.model_configs.items() if k in self.models],
+                'current_model': self.default_model,
+                'mode': 'model_selection'
             }))
 
             async for message in websocket:
@@ -95,29 +114,32 @@ class SimpleASRService:
         command = data.get('command')
         session = self.client_sessions[client_id]
 
-        if command == 'switch_language':
-            language = data.get('language', 'cn')
-            if language in self.models:
-                session['current_language'] = language
+        if command == 'switch_model':
+            model_name = data.get('model', self.default_model)
+            if model_name in self.models:
+                session['current_model'] = model_name
                 # 创建新的识别器
-                session['recognizer'] = self.create_recognizer(language)
+                session['recognizer'] = self.create_recognizer(model_name)
+                
+                config = self.model_configs.get(model_name, {})
+                display_name = config.get('display_name', model_name)
 
                 await websocket.send(json.dumps({
-                    'type': 'language_switched',
-                    'language': language,
-                    'message': f'已切换到{self.get_language_name(language)}识别'
+                    'type': 'model_switched',
+                    'model': model_name,
+                    'message': f'已切换到{display_name}'
                 }))
-                print(f"客户端 {client_id} 切换语言: {language}")
+                print(f"客户端 {client_id} 切换模型: {model_name}")
             else:
                 await websocket.send(json.dumps({
                     'type': 'error',
-                    'message': f'不支持的语言: {language}'
+                    'message': f'不支持的模型: {model_name}'
                 }))
 
         elif command == 'reset':
             # 重置识别器
-            current_lang = session['current_language']
-            session['recognizer'] = self.create_recognizer(current_lang)
+            current_model = session['current_model']
+            session['recognizer'] = self.create_recognizer(current_model)
 
             await websocket.send(json.dumps({
                 'type': 'reset_complete',
@@ -125,10 +147,11 @@ class SimpleASRService:
             }))
 
     async def process_audio_data(self, websocket, client_id, audio_data):
-        """处理音频数据 - 单语言识别"""
+        """处理音频数据 - 单模型识别"""
         session = self.client_sessions[client_id]
-        current_lang = session['current_language']
+        current_model = session['current_model']
         recognizer = session['recognizer']
+        current_lang = self.get_model_language(current_model)
 
         if not recognizer:
             return
@@ -142,7 +165,7 @@ class SimpleASRService:
                 if text:
                     await websocket.send(json.dumps({
                         'is_final': True,
-                        'mode': self.model_names.get(current_lang, current_lang),
+                        'mode': current_model,
                         'text': text,
                         'wav_name': 'h5',
                         'language': current_lang,
@@ -156,7 +179,7 @@ class SimpleASRService:
                 if partial_text:
                     await websocket.send(json.dumps({
                         'is_final': False,
-                        'mode': self.model_names.get(current_lang, current_lang),
+                        'mode': current_model,
                         'text': partial_text,
                         'wav_name': 'h5',
                         'language': current_lang

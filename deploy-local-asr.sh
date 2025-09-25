@@ -120,17 +120,30 @@ download_vosk_models() {
     # 创建models目录
     mkdir -p ./models
 
-    # 中文模型
+    # 中文模型 (small)
     if [ ! -d "./models/vosk-model-small-cn-0.22" ]; then
-        log_info "下载中文语音模型 (约170MB)..."
+        log_info "下载中文语音模型 Small (约170MB)..."
         cd models
         wget -c https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
         unzip -q vosk-model-small-cn-0.22.zip
         rm vosk-model-small-cn-0.22.zip
         cd ..
-        log_success "中文模型下载完成"
+        log_success "中文模型 Small 下载完成"
     else
-        log_success "中文模型已存在"
+        log_success "中文模型 Small 已存在"
+    fi
+
+    # 中文模型 (standard)
+    if [ ! -d "./models/vosk-model-cn-0.22" ]; then
+        log_info "下载中文语音模型 Standard (约1.8GB)..."
+        cd models
+        wget -c https://alphacephei.com/vosk/models/vosk-model-cn-0.22.zip
+        unzip -q vosk-model-cn-0.22.zip
+        rm vosk-model-cn-0.22.zip
+        cd ..
+        log_success "中文模型 Standard 下载完成"
+    else
+        log_success "中文模型 Standard 已存在"
     fi
 
     # 英文模型
@@ -248,8 +261,9 @@ show_deployment_info() {
     echo "🚀 服务信息:"
     echo "  • WebSocket地址: ws://${server_ip}:${WEBSOCKET_PORT}"
     echo "  • 容器名称: $CONTAINER_NAME"
-    echo "  • 支持语言: 中文 (cn) / 英文 (en)"
-    echo "  • 识别模式: 手动切换"
+    echo "  • 支持模型: 中文Small/Standard + 英文Small"
+    echo "  • 识别模式: 模型选择"
+    echo "  • 模型存储: ./models/ (外挂挂载)"
     echo
     echo "🔧 管理命令:"
     if docker compose version &> /dev/null; then

@@ -80,11 +80,12 @@ chmod +x deploy-local-asr.sh
 - 必要的系统命令
 
 ### 步骤2: 语音模型下载
-自动下载Vosk语音模型：
-- **中文模型**: vosk-model-small-cn-0.22 (~170MB)
-- **英文模型**: vosk-model-small-en-us-0.15 (~40MB)
+自动下载Vosk语音模型到本地`./models/`目录：
+- **中文模型Small**: vosk-model-small-cn-0.22 (~170MB)
+- **中文模型Standard**: vosk-model-cn-0.22 (~1.8GB)
+- **英文模型Small**: vosk-model-small-en-us-0.15 (~40MB)
 
-模型文件存储在 `./models/` 目录下。
+模型文件存储在项目的`./models/`目录下，通过Docker Volume挂载到容器中。
 
 ### 步骤3: Docker镜像构建
 使用 `Dockerfile.websocket-asr-local` 构建包含以下组件的镜像：

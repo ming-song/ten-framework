@@ -6,4 +6,6 @@ services:
     container_name: websocket-asr-local
     ports:
       - "8765:8765"
+    volumes:
+      - ./models:/app/models:ro  # Mount models directory as read-only
     restart: unless-stopped

@@ -160,6 +160,25 @@
             flex-wrap: wrap;
             margin-top: 15px;
         }
+        
+        .language-controls label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .language-controls select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+            min-width: 200px;
+        }
+        
+        .language-controls select:disabled {
+            background: #f5f5f5;
+            color: #999;
+        }
 
         .main-content {
             display: grid;
@@ -328,14 +347,14 @@
         <div class="instructions">
             <h3>📋 使用说明</h3>
             <ul>
-                <li><strong>手动切换模式</strong>：点击按钮切换中英文识别模式</li>
-                <li><strong>单语言识别</strong>：每次只使用一种语言模型，避免混淆</li>
-                <li><strong>可靠稳定</strong>：专注于准确识别，不做复杂的自动检测</li>
-                <li><strong>简单清晰</strong>：界面简洁，操作直观</li>
+                <li><strong>模型选择模式</strong>：使用下拉菜单选择不同的语音识别模型</li>
+                <li><strong>多模型支持</strong>：支持中文Small、中文Standard和英文Small模型</li>
+                <li><strong>实时切换</strong>：可在连接期间切换不同模型</li>
+                <li><strong>精确识别</strong>：每个模型针对特定语言优化</li>
                 <li><strong>API调用可见</strong>：所有操作对应的WebSocket消息都会显示</li>
             </ul>
             <div class="alert alert-success">
-                <strong>使用建议：</strong>说中文时切换到中文模式，说英文时切换到英文模式
+                <strong>使用建议：</strong>针对不同内容选择合适的模型，中文Standard模型识别精度更高但资源消耗更大
             </div>
         </div>
 
@@ -345,12 +364,12 @@
                 <span class="status-value" id="connectionStatus">未连接</span>
             </div>
             <div class="status-item">
-                <span>当前语言:</span>
-                <span class="status-value" id="currentLanguage">中文</span>
+                <span>当前模型:</span>
+                <span class="status-value" id="currentModel">vosk-model-cn-0.22</span>
             </div>
             <div class="status-item">
                 <span>识别模式:</span>
-                <span class="status-value" id="recognitionMode">手动切换</span>
+                <span class="status-value" id="recognitionMode">模型选择</span>
             </div>
             <div class="status-item">
                 <span>录音状态:</span>
@@ -366,8 +385,13 @@
         </div>
 
         <div class="language-controls">
-            <button id="switchToChinese" class="secondary-btn" disabled>切换到中文</button>
-            <button id="switchToEnglish" class="secondary-btn" disabled>切换到英文</button>
+            <label for="modelSelect">选择模型:</label>
+            <select id="modelSelect" disabled>
+                <option value="vosk-model-cn-0.22" selected>中文 - Standard (0.22) ★推荐</option>
+                <option value="vosk-model-small-cn-0.22">中文 - Small (0.22)</option>
+                <option value="vosk-model-small-en-us-0.15">English (US) - Small</option>
+            </select>
+            <button id="switchModel" class="secondary-btn" disabled>切换模型</button>
         </div>
 
         <div class="main-content">
@@ -391,7 +415,8 @@
                 this.audioContext = null;
                 this.isRecording = false;
                 this.isConnected = false;
-                this.currentLanguage = 'cn';
+                this.currentModel = 'vosk-model-cn-0.22';
+                this.availableModels = {};
                 this.currentPartialCard = null; // 当前部分识别卡片
 
                 this.initializeElements();
@@ -405,10 +430,10 @@
                     startBtn: document.getElementById('startBtn'),
                     stopBtn: document.getElementById('stopBtn'),
                     resetBtn: document.getElementById('resetBtn'),
-                    switchToChinese: document.getElementById('switchToChinese'),
-                    switchToEnglish: document.getElementById('switchToEnglish'),
+                    modelSelect: document.getElementById('modelSelect'),
+                    switchModel: document.getElementById('switchModel'),
                     connectionStatus: document.getElementById('connectionStatus'),
-                    currentLanguage: document.getElementById('currentLanguage'),
+                    currentModel: document.getElementById('currentModel'),
                     recognitionMode: document.getElementById('recognitionMode'),
                     recordingStatus: document.getElementById('recordingStatus'),
                     results: document.getElementById('results'),
@@ -421,8 +446,7 @@
                 this.elements.startBtn.addEventListener('click', () => this.startRecording());
                 this.elements.stopBtn.addEventListener('click', () => this.stopRecording());
                 this.elements.resetBtn.addEventListener('click', () => this.reset());
-                this.elements.switchToChinese.addEventListener('click', () => this.switchLanguage('cn'));
-                this.elements.switchToEnglish.addEventListener('click', () => this.switchLanguage('en'));
+                this.elements.switchModel.addEventListener('click', () => this.switchModel());
             }
 
             async toggleConnection() {
@@ -518,16 +542,20 @@
                 // 处理原有格式的消息
                 switch (data.type) {
                     case 'connection_established':
-                        this.currentLanguage = data.current_language;
-                        this.updateLanguageStatus();
-                        this.addResult('系统', '简单ASR服务已就绪，支持手动语言切换', 'info');
+                        // 更新可用模型列表
+                        if (data.available_models) {
+                            this.updateAvailableModels(data.available_models);
+                        }
+                        this.currentModel = data.current_model || 'vosk-model-small-cn-0.22';
+                        this.updateModelStatus();
+                        this.addResult('系统', 'ASR服务已就绪，支持模型选择', 'info');
                         break;
 
-                    case 'language_switched':
-                        this.currentLanguage = data.language;
-                        this.updateLanguageStatus();
-                        this.addResult('语言切换', data.message, 'info');
-                        // 清除当前部分识别卡片，因为语言已切换
+                    case 'model_switched':
+                        this.currentModel = data.model;
+                        this.updateModelStatus();
+                        this.addResult('模型切换', data.message, 'info');
+                        // 清除当前部分识别卡片，因为模型已切换
                         this.currentPartialCard = null;
                         break;
 
@@ -617,14 +645,47 @@
                 this.addResult('系统', '录音已停止', 'info');
             }
 
-            switchLanguage(language) {
+            switchModel() {
+                const selectedModel = this.elements.modelSelect.value;
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     const message = {
-                        command: 'switch_language',
-                        language: language
+                        command: 'switch_model',
+                        model: selectedModel
                     };
-                    this.logAPI('切换语言', JSON.stringify(message, null, 2), 'send');
+                    this.logAPI('切换模型', JSON.stringify(message, null, 2), 'send');
                     this.websocket.send(JSON.stringify(message));
+                }
+            }
+            
+            updateAvailableModels(models) {
+                const select = this.elements.modelSelect;
+                select.innerHTML = ''; // 清空现有选项
+                
+                // 默认模型选项
+                const defaultOptions = {
+                    'vosk-model-small-cn-0.22': '中文 - Small (0.22)',
+                    'vosk-model-cn-0.22': '中文 - Standard (0.22)',
+                    'vosk-model-small-en-us-0.15': 'English (US) - Small'
+                };
+                
+                // 添加默认选项
+                for (const [modelName, displayName] of Object.entries(defaultOptions)) {
+                    const option = document.createElement('option');
+                    option.value = modelName;
+                    option.textContent = displayName;
+                    select.appendChild(option);
+                }
+                
+                // 从服务器更新可用模型（如果提供）
+                if (Array.isArray(models)) {
+                    this.availableModels = {};
+                    models.forEach(modelInfo => {
+                        if (typeof modelInfo === 'object') {
+                            Object.entries(modelInfo).forEach(([key, value]) => {
+                                this.availableModels[key] = value;
+                            });
+                        }
+                    });
                 }
             }
 
@@ -643,16 +704,25 @@
                 this.elements.connectionStatus.className = `status-value ${type}`;
             }
 
-            updateLanguageStatus() {
-                this.elements.currentLanguage.textContent = this.getLanguageName(this.currentLanguage);
+            updateModelStatus() {
+                this.elements.currentModel.textContent = this.getModelDisplayName(this.currentModel);
+                // 更新下拉框选中项
+                this.elements.modelSelect.value = this.currentModel;
             }
-
-            getLanguageName(lang) {
-                const names = {
-                    'cn': '中文',
-                    'en': '英文'
+            
+            getModelDisplayName(modelName) {
+                const displayNames = {
+                    'vosk-model-small-cn-0.22': '中文 - Small (0.22)',
+                    'vosk-model-cn-0.22': '中文 - Standard (0.22)',
+                    'vosk-model-small-en-us-0.15': 'English (US) - Small'
                 };
-                return names[lang] || lang;
+                return displayNames[modelName] || modelName;
+            }
+            
+            getLanguageFromModel(modelName) {
+                if (modelName.includes('cn')) return 'cn';
+                if (modelName.includes('en')) return 'en';
+                return 'cn'; // 默认中文
             }
 
             // 更新部分识别结果
@@ -671,7 +741,7 @@
                     // 更新语言标签
                     const languageTag = this.currentPartialCard.querySelector('.language-tag');
                     if (languageTag && language) {
-                        languageTag.textContent = this.getLanguageName(language);
+                        languageTag.textContent = this.getModelDisplayName(mode) || language;
                         languageTag.className = `language-tag ${language}`;
                     }
                 }
@@ -723,7 +793,7 @@
 
                 const time = new Date().toLocaleTimeString();
                 const icon = isFinal ? '✅' : '🔄';
-                const languageDisplay = language ? this.getLanguageName(language) : '';
+                const languageDisplay = language ? (this.getModelDisplayName(mode) || language) : '';
                 const modeDisplay = mode || '';
 
                 let languageTag = '';
@@ -769,16 +839,16 @@
             enableControls() {
                 this.elements.startBtn.disabled = false;
                 this.elements.resetBtn.disabled = false;
-                this.elements.switchToChinese.disabled = false;
-                this.elements.switchToEnglish.disabled = false;
+                this.elements.modelSelect.disabled = false;
+                this.elements.switchModel.disabled = false;
             }
 
             disableControls() {
                 this.elements.startBtn.disabled = true;
                 this.elements.stopBtn.disabled = true;
                 this.elements.resetBtn.disabled = true;
-                this.elements.switchToChinese.disabled = true;
-                this.elements.switchToEnglish.disabled = true;
+                this.elements.modelSelect.disabled = true;
+                this.elements.switchModel.disabled = true;
             }
         }
 

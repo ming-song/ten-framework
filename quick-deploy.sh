@@ -24,10 +24,18 @@ docker rm $CONTAINER_NAME 2>/dev/null || true
 # 下载模型（如果不存在）
 mkdir -p models
 [ ! -d "models/vosk-model-small-cn-0.22" ] && {
-    echo "📥 下载中文模型..."
+    echo "📥 下载中文模型 Small..."
     cd models
     wget -q https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
     unzip -q vosk-model-small-cn-0.22.zip && rm vosk-model-small-cn-0.22.zip
+    cd ..
+}
+
+[ ! -d "models/vosk-model-cn-0.22" ] && {
+    echo "📥 下载中文模型 Standard..."
+    cd models
+    wget -q https://alphacephei.com/vosk/models/vosk-model-cn-0.22.zip
+    unzip -q vosk-model-cn-0.22.zip && rm vosk-model-cn-0.22.zip
     cd ..
 }
 

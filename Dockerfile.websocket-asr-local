@@ -22,25 +22,17 @@ RUN pip3 install --no-cache-dir \
 # Copy standalone service
 COPY standalone_websocket_asr_simple.py .
 
-# Download Vosk models (English and Chinese)
-RUN mkdir -p models && \
-    cd models && \
-    # Download English model
-    wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip && \
-    unzip vosk-model-small-en-us-0.15.zip && \
-    rm vosk-model-small-en-us-0.15.zip && \
-    # Download Chinese model
-    wget https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip && \
-    unzip vosk-model-small-cn-0.22.zip && \
-    rm vosk-model-small-cn-0.22.zip
+# Create models directory (will be mounted from host)
+RUN mkdir -p models
 
 # Set environment variables
 ENV SERVER_PORT=8765
 ENV MODEL_PATH=models/vosk-model-small-cn-0.22
 ENV MODEL_PATH_EN=models/vosk-model-small-en-us-0.15
-ENV MODEL_PATH_CN=models/vosk-model-small-cn-0.22
+ENV MODEL_PATH_CN_SMALL=models/vosk-model-small-cn-0.22
+ENV MODEL_PATH_CN_STANDARD=models/vosk-model-cn-0.22
 ENV SAMPLE_RATE=16000
-ENV DEFAULT_LANGUAGE=cn
+ENV DEFAULT_MODEL=vosk-model-small-cn-0.22
 
 # Expose WebSocket port
 EXPOSE 8765

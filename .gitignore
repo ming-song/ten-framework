@@ -150,9 +150,9 @@ test_env/
 
 # Vosk models (large files, should be downloaded separately)
 vosk-model-*/
-models/
-*.tar.gz
-*.zip
+models/vosk-model-*/
+models/*.zip
+!models/README.md
 
 # Temporary ASR files
 standalone_websocket_asr_fixed.py
