@@ -160,12 +160,12 @@
             flex-wrap: wrap;
             margin-top: 15px;
         }
-        
+
         .language-controls label {
             font-weight: 600;
             color: #333;
         }
-        
+
         .language-controls select {
             padding: 8px 12px;
             border: 1px solid #ddd;
@@ -174,7 +174,7 @@
             background: white;
             min-width: 200px;
         }
-        
+
         .language-controls select:disabled {
             background: #f5f5f5;
             color: #999;
@@ -401,7 +401,10 @@
             </div>
 
             <div class="api-log">
-                <h3>📡 API调用日志</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3>📡 API调用日志</h3>
+                    <button id="clearApiLog" class="secondary-btn" style="padding: 5px 10px; font-size: 12px;">清空日志</button>
+                </div>
                 <div id="apiLog"></div>
             </div>
         </div>
@@ -415,12 +418,14 @@
                 this.audioContext = null;
                 this.isRecording = false;
                 this.isConnected = false;
-                this.currentModel = 'vosk-model-cn-0.22';
+                this.currentModel = 'vosk-model-cn-0.22'; // 与服务端默认保持一致
                 this.availableModels = {};
                 this.currentPartialCard = null; // 当前部分识别卡片
 
                 this.initializeElements();
                 this.bindEvents();
+                // 初始化模型显示
+                this.updateModelStatus();
             }
 
             initializeElements() {
@@ -437,7 +442,8 @@
                     recognitionMode: document.getElementById('recognitionMode'),
                     recordingStatus: document.getElementById('recordingStatus'),
                     results: document.getElementById('results'),
-                    apiLog: document.getElementById('apiLog')
+                    apiLog: document.getElementById('apiLog'),
+                    clearApiLog: document.getElementById('clearApiLog')
                 };
             }
 
@@ -447,6 +453,7 @@
                 this.elements.stopBtn.addEventListener('click', () => this.stopRecording());
                 this.elements.resetBtn.addEventListener('click', () => this.reset());
                 this.elements.switchModel.addEventListener('click', () => this.switchModel());
+                this.elements.clearApiLog.addEventListener('click', () => this.clearApiLog());
             }
 
             async toggleConnection() {
@@ -482,6 +489,7 @@
                     this.websocket.onmessage = (event) => {
                         try {
                             const data = JSON.parse(event.data);
+                            // 为每条消息创建独立的日志记录
                             this.logAPI('接收消息', JSON.stringify(data, null, 2), 'receive');
                             this.handleWebSocketMessage(data);
                         } catch (e) {
@@ -526,6 +534,8 @@
             handleWebSocketMessage(data) {
                 // 处理兼容格式的消息
                 if (data.hasOwnProperty('is_final')) {
+                    console.log('收到识别消息:', data);
+                    
                     if (data.is_final === false) {
                         // 部分结果 - 更新现有卡片或创建新卡片
                         this.updatePartialResult(data.text, data.language, data.mode);
@@ -546,17 +556,23 @@
                         if (data.available_models) {
                             this.updateAvailableModels(data.available_models);
                         }
-                        this.currentModel = data.current_model || 'vosk-model-small-cn-0.22';
-                        this.updateModelStatus();
-                        this.addResult('系统', 'ASR服务已就绪，支持模型选择', 'info');
+                        // 重要：从服务器获取当前模型状态并同步
+                        if (data.current_model) {
+                            this.currentModel = data.current_model;
+                            this.updateModelStatus();
+                        }
+                        this.addResult('系统', `ASR服务已就绪，当前模型: ${this.getModelDisplayName(this.currentModel)}`, 'info');
+                        console.log('连接建立，当前模型:', this.currentModel);
                         break;
 
                     case 'model_switched':
+                        // 更新本地状态
                         this.currentModel = data.model;
                         this.updateModelStatus();
                         this.addResult('模型切换', data.message, 'info');
                         // 清除当前部分识别卡片，因为模型已切换
                         this.currentPartialCard = null;
+                        console.log('模型已切换到:', this.currentModel);
                         break;
 
                     case 'reset_complete':
@@ -587,6 +603,7 @@
                     const source = this.audioContext.createMediaStreamSource(stream);
                     const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
+                    let audioPacketCount = 0; // 计数器
                     processor.onaudioprocess = (event) => {
                         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                             const inputBuffer = event.inputBuffer.getChannelData(0);
@@ -597,6 +614,12 @@
                             }
 
                             this.websocket.send(pcmData.buffer);
+                            
+                            // 每100个音频包记录一次日志，避免过于频繁
+                            audioPacketCount++;
+                            if (audioPacketCount % 100 === 1) {
+                                this.logAPI('音频数据', `发送第${audioPacketCount}个PCM音频包 (${pcmData.length} samples)`, 'send');
+                            }
                         }
                     };
 
@@ -647,6 +670,13 @@
 
             switchModel() {
                 const selectedModel = this.elements.modelSelect.value;
+                console.log('请求切换模型到:', selectedModel, '当前模型:', this.currentModel);
+
+                if (selectedModel === this.currentModel) {
+                    this.addResult('模型切换', '已经是当前模型，无需切换', 'info');
+                    return;
+                }
+
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     const message = {
                         command: 'switch_model',
@@ -654,20 +684,22 @@
                     };
                     this.logAPI('切换模型', JSON.stringify(message, null, 2), 'send');
                     this.websocket.send(JSON.stringify(message));
+                } else {
+                    this.addResult('错误', 'WebSocket连接未建立，无法切换模型', 'info');
                 }
             }
-            
+
             updateAvailableModels(models) {
                 const select = this.elements.modelSelect;
                 select.innerHTML = ''; // 清空现有选项
-                
+
                 // 默认模型选项
                 const defaultOptions = {
                     'vosk-model-small-cn-0.22': '中文 - Small (0.22)',
                     'vosk-model-cn-0.22': '中文 - Standard (0.22)',
                     'vosk-model-small-en-us-0.15': 'English (US) - Small'
                 };
-                
+
                 // 添加默认选项
                 for (const [modelName, displayName] of Object.entries(defaultOptions)) {
                     const option = document.createElement('option');
@@ -675,7 +707,7 @@
                     option.textContent = displayName;
                     select.appendChild(option);
                 }
-                
+
                 // 从服务器更新可用模型（如果提供）
                 if (Array.isArray(models)) {
                     this.availableModels = {};
@@ -705,11 +737,13 @@
             }
 
             updateModelStatus() {
-                this.elements.currentModel.textContent = this.getModelDisplayName(this.currentModel);
+                const displayName = this.getModelDisplayName(this.currentModel);
+                this.elements.currentModel.textContent = displayName;
                 // 更新下拉框选中项
                 this.elements.modelSelect.value = this.currentModel;
+                console.log('更新模型状态:', this.currentModel, '显示名称:', displayName);
             }
-            
+
             getModelDisplayName(modelName) {
                 const displayNames = {
                     'vosk-model-small-cn-0.22': '中文 - Small (0.22)',
@@ -718,7 +752,7 @@
                 };
                 return displayNames[modelName] || modelName;
             }
-            
+
             getLanguageFromModel(modelName) {
                 if (modelName.includes('cn')) return 'cn';
                 if (modelName.includes('en')) return 'en';
@@ -727,6 +761,8 @@
 
             // 更新部分识别结果
             updatePartialResult(text, language, mode) {
+                console.log('更新部分识别:', text, 'language:', language, 'mode:', mode);
+                
                 if (!this.currentPartialCard) {
                     // 创建新的部分识别卡片
                     this.currentPartialCard = this.createResultCard('部分识别', text, 'partial', language, mode, false);
@@ -740,9 +776,11 @@
 
                     // 更新语言标签
                     const languageTag = this.currentPartialCard.querySelector('.language-tag');
-                    if (languageTag && language) {
-                        languageTag.textContent = this.getModelDisplayName(mode) || language;
+                    if (languageTag && mode) {
+                        const displayName = this.getModelDisplayName(mode);
+                        languageTag.textContent = displayName;
                         languageTag.className = `language-tag ${language}`;
+                        console.log('更新语言标签:', displayName);
                     }
                 }
             }
@@ -759,6 +797,15 @@
                     const textElement = this.currentPartialCard.querySelector('.result-text');
                     if (textElement) {
                         textElement.textContent = text;
+                    }
+                    
+                    // 更新语言标签为最终模型显示名称
+                    const languageTag = this.currentPartialCard.querySelector('.language-tag');
+                    if (languageTag && mode) {
+                        const displayName = this.getModelDisplayName(mode);
+                        languageTag.textContent = displayName;
+                        languageTag.className = `language-tag ${language}`;
+                        console.log('最终结果语言标签:', displayName);
                     }
 
                     // 移除partial类，添加对应语言类
@@ -793,18 +840,22 @@
 
                 const time = new Date().toLocaleTimeString();
                 const icon = isFinal ? '✅' : '🔄';
-                const languageDisplay = language ? (this.getModelDisplayName(mode) || language) : '';
+                
+                // 根据模型获取显示名称
+                const languageDisplay = mode ? this.getModelDisplayName(mode) : (language || '');
                 const modeDisplay = mode || '';
 
                 let languageTag = '';
-                if (language) {
+                if (languageDisplay) {
                     languageTag = `<span class="language-tag ${language}">${languageDisplay}</span>`;
                 }
+                
+                console.log('创建结果卡片:', { type, category, language, mode, languageDisplay });
 
                 resultDiv.innerHTML = `
                     <div class="result-meta">
                         <span><strong>${icon} ${type}</strong> ${languageTag}</span>
-                        <span>${time} ${modeDisplay ? `| ${modeDisplay}` : ''}</span>
+                        <span>${time} ${modeDisplay && modeDisplay !== languageDisplay ? `| ${modeDisplay}` : ''}</span>
                     </div>
                     <div class="result-text">${text}</div>
                 `;
@@ -819,19 +870,25 @@
                 const time = new Date().toLocaleTimeString();
                 const icon = direction === 'send' ? '📤' : '📥';
 
+                // 对于识别数据，简化显示内容
+                let displayContent = content;
+                if (content.length > 500) {
+                    displayContent = content.substring(0, 500) + '...[内容过长，已截断]';
+                }
+
                 apiDiv.innerHTML = `
                     <div class="api-meta">
                         <span><strong>${icon} ${operation}</strong></span>
                         <span>${time}</span>
                     </div>
-                    <div class="api-text">${content}</div>
+                    <div class="api-text">${displayContent}</div>
                 `;
 
                 this.elements.apiLog.insertBefore(apiDiv, this.elements.apiLog.firstChild);
 
                 // 限制显示的API日志数量
                 const logs = this.elements.apiLog.children;
-                if (logs.length > 30) {
+                if (logs.length > 50) {
                     this.elements.apiLog.removeChild(logs[logs.length - 1]);
                 }
             }
@@ -849,6 +906,11 @@
                 this.elements.resetBtn.disabled = true;
                 this.elements.modelSelect.disabled = true;
                 this.elements.switchModel.disabled = true;
+            }
+            
+            clearApiLog() {
+                this.elements.apiLog.innerHTML = '';
+                this.logAPI('系统', 'API日志已清空', 'receive');
             }
         }
 

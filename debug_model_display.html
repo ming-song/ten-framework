@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>模型显示测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-case { border: 1px solid #ccc; margin: 10px 0; padding: 15px; }
+        .result { background: #f0f0f0; padding: 10px; margin: 5px 0; }
+        .language-tag { padding: 2px 8px; border-radius: 12px; color: white; margin: 0 5px; }
+        .language-tag.cn { background: #dc3545; }
+        .language-tag.en { background: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>模型显示名称测试</h1>
+    
+    <div class="test-case">
+        <h3>测试函数：getModelDisplayName</h3>
+        <div id="displayNameTest"></div>
+    </div>
+    
+    <div class="test-case">
+        <h3>测试结果卡片生成</h3>
+        <div id="cardTest"></div>
+    </div>
+
+    <script>
+        function getModelDisplayName(modelName) {
+            const displayNames = {
+                'vosk-model-small-cn-0.22': '中文 - Small (0.22)',
+                'vosk-model-cn-0.22': '中文 - Standard (0.22)',
+                'vosk-model-small-en-us-0.15': 'English (US) - Small'
+            };
+            return displayNames[modelName] || modelName;
+        }
+
+        function getLanguageFromModel(modelName) {
+            if (modelName.includes('cn')) return 'cn';
+            if (modelName.includes('en')) return 'en';
+            return 'cn';
+        }
+
+        function createTestCard(modelName, text) {
+            const language = getLanguageFromModel(modelName);
+            const displayName = getModelDisplayName(modelName);
+            
+            return `
+                <div class="result">
+                    <strong>模型: ${modelName}</strong><br>
+                    语言: ${language}<br>
+                    显示名称: <span class="language-tag ${language}">${displayName}</span><br>
+                    文本: ${text}
+                </div>
+            `;
+        }
+
+        // 测试显示名称函数
+        const testModels = [
+            'vosk-model-small-cn-0.22',
+            'vosk-model-cn-0.22', 
+            'vosk-model-small-en-us-0.15'
+        ];
+
+        document.getElementById('displayNameTest').innerHTML = testModels.map(model => 
+            `<div><strong>${model}</strong> → ${getModelDisplayName(model)}</div>`
+        ).join('');
+
+        // 测试卡片生成
+        document.getElementById('cardTest').innerHTML = testModels.map(model => 
+            createTestCard(model, `这是使用${getModelDisplayName(model)}的测试`)
+        ).join('');
+
+        console.log('=== 调试信息 ===');
+        testModels.forEach(model => {
+            console.log(`模型: ${model}`);
+            console.log(`显示名称: ${getModelDisplayName(model)}`);
+            console.log(`语言: ${getLanguageFromModel(model)}`);
+            console.log('---');
+        });
+    </script>
+</body>
+</html>

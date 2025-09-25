@@ -17,15 +17,7 @@ if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev
     exit 1
 fi
 
-# 停止旧容器和清理镜像
-echo "🧹 清理旧的部署..."
-docker stop $CONTAINER_NAME 2>/dev/null || true
-docker rm $CONTAINER_NAME 2>/dev/null || true
-
-# 清理旧镜像
-docker rmi ten-framework/websocket-asr-local 2>/dev/null || true
-
-# 下载模型（如果不存在）
+# 阶段1: 先下载模型（避免服务中断期间下载）
 mkdir -p models
 [ ! -d "models/vosk-model-small-cn-0.22" ] && {
     echo "📥 下载中文模型 Small..."
@@ -50,6 +42,12 @@ mkdir -p models
     unzip -q vosk-model-small-en-us-0.15.zip && rm vosk-model-small-en-us-0.15.zip
     cd ..
 }
+
+# 阶段2: 快速容器切换（模型已就绪）
+echo "🧹 容器切换..."
+docker stop $CONTAINER_NAME 2>/dev/null || true
+docker rm $CONTAINER_NAME 2>/dev/null || true
+docker rmi ten-framework/websocket-asr-local 2>/dev/null || true
 
 # 构建并启动
 echo "🔨 构建镜像..."

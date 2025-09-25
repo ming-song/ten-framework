@@ -54,14 +54,14 @@ show_docker_status() {
 # 清理容器
 cleanup_containers() {
     log_info "清理WebSocket ASR容器..."
-    
+
     # 停止运行中的容器
     if docker ps --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
         log_info "停止运行中的容器: $CONTAINER_NAME"
         docker stop $CONTAINER_NAME
         log_success "容器已停止"
     fi
-    
+
     # 删除容器
     if docker ps -a --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
         log_info "删除容器: $CONTAINER_NAME"
@@ -75,7 +75,7 @@ cleanup_containers() {
 # 清理镜像
 cleanup_images() {
     log_info "清理WebSocket ASR镜像..."
-    
+
     # 删除项目镜像
     if docker images --format "{{.Repository}}" | grep -q "^${IMAGE_NAME}$"; then
         log_info "删除项目镜像: $IMAGE_NAME"
@@ -87,7 +87,7 @@ cleanup_images() {
     else
         log_info "未找到项目镜像: $IMAGE_NAME"
     fi
-    
+
     # 清理dangling镜像
     local dangling_images=$(docker images -f "dangling=true" -q)
     if [ -n "$dangling_images" ]; then
@@ -141,7 +141,7 @@ show_cleanup_result() {
     log_success "清理操作完成！"
     echo "==============================================="
     echo
-    
+
     log_info "清理后的Docker资源状态："
     echo
     echo "📦 剩余容器："
@@ -153,7 +153,7 @@ show_cleanup_result() {
     echo "💾 资源占用："
     docker system df
     echo
-    
+
     log_info "如需重新部署，请运行: ./deploy-local-asr.sh"
 }
 
@@ -181,16 +181,16 @@ main() {
         log_error "Docker未安装或未启动"
         exit 1
     fi
-    
+
     # 显示当前状态
     show_docker_status
-    
+
     # 显示菜单
     while true; do
         show_menu
         read -p "请输入选项 [0-6]: " choice
         echo
-        
+
         case $choice in
             1)
                 cleanup_containers

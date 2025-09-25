@@ -29,7 +29,7 @@ class SimpleASRService:
                 'display_name': '中文 - Standard (0.22)'
             }
         }
-        
+
         # 加载所有可用模型
         for model_name, config in self.model_configs.items():
             try:
@@ -37,7 +37,7 @@ class SimpleASRService:
                 print(f"✓ {config['display_name']} 模型加载成功")
             except Exception as e:
                 print(f"❌ {config['display_name']} 模型加载失败: {e}")
-                
+
         # 默认模型 - V100服务器推荐使用标准版获得最佳精度
         self.default_model = 'vosk-model-cn-0.22'
 
@@ -47,11 +47,11 @@ class SimpleASRService:
         """为指定模型创建识别器"""
         if model_name is None:
             model_name = self.default_model
-            
+
         if model_name in self.models:
             return vosk.KaldiRecognizer(self.models[model_name], 16000)
         return None
-        
+
     def get_model_language(self, model_name):
         """获取模型对应的语言"""
         if model_name in self.model_configs:
@@ -120,7 +120,7 @@ class SimpleASRService:
                 session['current_model'] = model_name
                 # 创建新的识别器
                 session['recognizer'] = self.create_recognizer(model_name)
-                
+
                 config = self.model_configs.get(model_name, {})
                 display_name = config.get('display_name', model_name)
 

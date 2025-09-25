@@ -93,41 +93,53 @@ check_port() {
     log_success "端口 $WEBSOCKET_PORT 可用"
 }
 
-# 清理旧容器和镜像
-cleanup_old_deployment() {
-    log_info "清理旧的部署..."
+# 检查并准备容器切换（在模型下载前执行）
+check_and_prepare_switch() {
+    log_info "检查部署状态..."
 
-    # 停止并删除旧容器
+    # 检查是否有旧容器运行
+    local has_old_container=false
     if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
-        log_info "停止并删除旧容器: $CONTAINER_NAME"
-        docker stop $CONTAINER_NAME 2>/dev/null || true
-        docker rm $CONTAINER_NAME 2>/dev/null || true
+        has_old_container=true
+        if docker ps --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+            log_info "检测到运行中的旧容器: $CONTAINER_NAME（将在模型就绪后进行无缝切换）"
+        else
+            log_info "检测到停止的旧容器: $CONTAINER_NAME（将在模型就绪后清理）"
+        fi
+    else
+        log_info "未检测到旧容器，将进行全新部署"
+    fi
+
+    # 清理dangling镜像（不影响服务）
+    local dangling_count=$(docker images -f "dangling=true" -q | wc -l)
+    if [ "$dangling_count" -gt 0 ]; then
+        log_info "清理 $dangling_count 个无用的Docker镜像..."
+        docker image prune -f >/dev/null 2>&1
+    fi
+
+    log_success "部署状态检查完成"
+    return 0
+}
+
+# 执行容器切换（在模型和镜像就绪后执行）
+perform_container_switch() {
+    log_info "执行容器切换（最小化服务中断）..."
+
+    # 快速停止并删除旧容器
+    if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+        log_info "停止旧容器: $CONTAINER_NAME"
+        docker stop $CONTAINER_NAME >/dev/null 2>&1 || true
+        log_info "删除旧容器: $CONTAINER_NAME"
+        docker rm $CONTAINER_NAME >/dev/null 2>&1 || true
     fi
 
     # 清理旧的项目镜像
     if docker images --format "table {{.Repository}}\t{{.Tag}}" | grep -q "^${IMAGE_NAME}\s"; then
-        log_info "删除旧的项目镜像: $IMAGE_NAME"
-        docker rmi $IMAGE_NAME 2>/dev/null || true
+        log_info "删除旧镜像: $IMAGE_NAME"
+        docker rmi $IMAGE_NAME >/dev/null 2>&1 || true
     fi
 
-    # 清理dangling镜像
-    local dangling_count=$(docker images -f "dangling=true" -q | wc -l)
-    if [ "$dangling_count" -gt 0 ]; then
-        log_info "清理 $dangling_count 个无用的Docker镜像..."
-        docker image prune -f
-    fi
-
-    # 可选：清理未使用的镜像（节省更多空间）
-    # 询问用户是否要进行深度清理
-    read -p "是否要清理所有未使用的镜像以节省空间? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "执行深度清理：删除所有未使用的镜像..."
-        docker system prune -a -f
-        log_success "深度清理完成，已释放更多磁盘空间"
-    fi
-
-    log_success "清理完成"
+    log_success "容器切换准备完成"
 }
 
 # 下载Vosk语音模型
@@ -256,6 +268,20 @@ check_service_health() {
     fi
 }
 
+# 可选的深度清理（在部署完成后提供）
+optional_deep_cleanup() {
+    echo
+    read -p "是否要清理所有未使用的Docker资源以节省空间? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_info "执行深度清理：删除所有未使用的资源..."
+        docker system prune -a -f
+        log_success "深度清理完成，已释放更多磁盘空间"
+    else
+        log_info "跳过深度清理"
+    fi
+}
+
 # 显示服务日志
 show_service_logs() {
     log_info "显示服务日志..."
@@ -314,20 +340,39 @@ main() {
     echo "==============================================="
     echo
 
-    # 预检查
+    # 阶段1：预检查
+    log_info "阶段1: 系统环境检查"
     check_dependencies
     check_docker_service
     check_port
 
-    # 部署流程
-    cleanup_old_deployment
+    # 阶段2：检查部署状态
+    log_info "阶段2: 检查当前部署状态"
+    check_and_prepare_switch
+
+    # 阶段3：模型准备（关键优化：在切换服务前完成）
+    log_info "阶段3: 模型文件检查和下载（优先保证模型就绪）"
     download_vosk_models
+
+    # 阶段4：快速容器切换（模型已就绪，最小化服务中断）
+    log_info "阶段4: 执行容器切换（模型已就绪，加速切换）"
+    perform_container_switch
+
+    # 阶段5：镜像构建和服务启动
+    log_info "阶段5: 构建新镜像和启动服务"
     build_docker_image
     start_service
-    check_service_health
 
-    # 显示结果
+    # 阶段6：验证和展示
+    log_info "阶段6: 服务健康检查和部署信息展示"
+    check_service_health
     show_deployment_info
+
+    # 阶段7：可选清理
+    optional_deep_cleanup
+
+    echo
+    log_success "部署流程完成！服务切换时间已最小化。"
 }
 
 # 脚本入口
